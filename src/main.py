@@ -1,6 +1,7 @@
 from agents import TranslationAgent, PlanningAgent, CritiqueAgent, CodingAgent, TestingAgent
 from aoc_client import AdventOfCodeClient
 from pathlib import Path
+import shutil
 import time
 import click
 import sys
@@ -8,18 +9,20 @@ import sys
 
 class AdventSolver():
 
-    def __init__(self, workspace_path="./agent_workspace"):
-        """Initialize AdventSolver with workspace path.
+    def __init__(self, workspace_path="./agent_workspace", part=1):
+        """Initialize AdventSolver with workspace path and part number.
 
         Args:
             workspace_path: Path to the workspace directory where agents will run
+            part: Part number (1 or 2) of the puzzle being solved
         """
         self.workspace_path = workspace_path
-        self.translation_agent = TranslationAgent(workspace_path)
-        self.planning_agent = PlanningAgent(workspace_path)
-        self.critique_agent = CritiqueAgent(workspace_path)
-        self.coding_agent = CodingAgent(workspace_path)
-        self.testing_agent = TestingAgent(workspace_path)
+        self.part = part
+        self.translation_agent = TranslationAgent(workspace_path, part)
+        self.planning_agent = PlanningAgent(workspace_path, part)
+        self.critique_agent = CritiqueAgent(workspace_path, part)
+        self.coding_agent = CodingAgent(workspace_path, part)
+        self.testing_agent = TestingAgent(workspace_path, part)
 
     def parse_test_result(self, result):
         result_lines = result.strip().splitlines()
@@ -56,6 +59,69 @@ class AdventSolver():
                 self.coding_agent.run_agent(feedback=True)
 
 
+def setup_workspace(client, year, day, part, workspace_base):
+    """Set up workspace for a puzzle part.
+
+    Creates workspace directory, fetches puzzle and input files, and copies
+    Part 1 artifacts if solving Part 2.
+
+    Args:
+        client: AdventOfCodeClient instance
+        year: The year of the puzzle
+        day: The day of the puzzle
+        part: The part number (1 or 2)
+        workspace_base: Base workspace directory
+
+    Returns:
+        Path object for the workspace directory
+    """
+    # Create workspace directory
+    workspace_path = Path(workspace_base) / str(year) / f"day_{day}" / f"part_{part}"
+    workspace_path.mkdir(parents=True, exist_ok=True)
+    print(f"Workspace: {workspace_path}\n")
+
+    # Fetch puzzle and input
+    print(f"Fetching puzzle part {part}...")
+    puzzle_file = client.save_puzzle_to_file(year, day, part, workspace_base)
+    print(f"  ✓ Puzzle saved to {puzzle_file}")
+
+    print(f"Fetching input...")
+    input_file = client.save_input_to_file(year, day, part, workspace_base)
+    print(f"  ✓ Input saved to {input_file}")
+
+    # If Part 2, copy Part 1 artifacts for context
+    if part == 2:
+        print(f"\nCopying Part 1 artifacts for context...")
+        part1_workspace = workspace_path.parent / "part_1"
+
+        if not part1_workspace.exists():
+            print(f"  ⚠ Warning: Part 1 workspace not found at {part1_workspace}")
+        else:
+            # Files to copy: (source_name, destination_name)
+            files_to_copy = [
+                ("answer.txt", "part_1_answer.txt"),
+                ("problem.md", "part_1_problem.md"),
+                ("solution.py", "part_1_solution.py"),
+                ("puzzle.md", "part_1_puzzle.md"),
+            ]
+
+            for source_name, dest_name in files_to_copy:
+                source_file = part1_workspace / source_name
+                dest_file = workspace_path / dest_name
+
+                if source_file.exists():
+                    try:
+                        shutil.copy2(source_file, dest_file)
+                        print(f"  ✓ Copied {source_name} → {dest_name}")
+                    except Exception as e:
+                        print(f"  ⚠ Warning: Failed to copy {source_name}: {e}")
+                else:
+                    print(f"  ⚠ Warning: Part 1 file not found: {source_name}")
+
+    print()  # Empty line after setup
+    return workspace_path
+
+
 def solve_part(client, year, day, part, workspace_base):
     """Solve a single part of a puzzle.
 
@@ -73,23 +139,12 @@ def solve_part(client, year, day, part, workspace_base):
     print(f"  Part {part}")
     print(f"{'='*60}\n")
 
-    # Set up workspace path for this part
-    workspace_path = Path(workspace_base) / str(year) / f"day_{day}" / f"part_{part}"
-    workspace_path.mkdir(parents=True, exist_ok=True)
-    print(f"Workspace: {workspace_path}\n")
-
-    # Fetch puzzle and input
-    print(f"Fetching puzzle part {part}...")
-    puzzle_file = client.save_puzzle_to_file(year, day, part, workspace_base)
-    print(f"  ✓ Puzzle saved to {puzzle_file}")
-
-    print(f"Fetching input...")
-    input_file = client.save_input_to_file(year, day, part, workspace_base)
-    print(f"  ✓ Input saved to {input_file}\n")
+    # Set up workspace (create dirs, fetch files, copy Part 1 artifacts if needed)
+    workspace_path = setup_workspace(client, year, day, part, workspace_base)
 
     # Run solver
     print("=== Starting Solver ===\n")
-    solver = AdventSolver(workspace_path=str(workspace_path))
+    solver = AdventSolver(workspace_path=str(workspace_path), part=part)
     success = solver.solve()
 
     if not success:

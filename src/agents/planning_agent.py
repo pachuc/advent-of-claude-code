@@ -2,9 +2,9 @@ from .base_agent import BaseAgent
 
 class PlanningAgent(BaseAgent):
 
-    def __init__(self, workspace_path="./agent_workspace"):
-        """Initialize PlanningAgent with workspace path."""
-        super().__init__(workspace_path)
+    def __init__(self, workspace_path="./agent_workspace", part=1):
+        """Initialize PlanningAgent with workspace path and part number."""
+        super().__init__(workspace_path, part)
 
     def prompt(self, feedback):
         plan_prompt = """
@@ -27,6 +27,29 @@ class PlanningAgent(BaseAgent):
 
         The problem statement for you to solve can be found in problem.md.
         The input for your problem can be found in input.md.
+        """
+
+        if self.part == 2:
+            plan_prompt += """
+
+        IMPORTANT - PART 2 CONTEXT:
+        You are planning a solution for Part 2 of a multi-part puzzle. Part 2 often
+        builds on or modifies the Part 1 solution. You have access to:
+
+        - part_1_answer.txt: The answer that was computed for Part 1
+        - part_1_problem.md: The full Part 1 problem description and context
+        - part_1_solution.py: The working code that solved Part 1
+        - part_1_puzzle.md: The original Part 1 puzzle text
+
+        STRONGLY CONSIDER:
+        - Can you reuse or adapt the algorithm from part_1_solution.py?
+        - Does Part 2 require the Part 1 answer as a starting point?
+        - Is Part 2 a variation of Part 1 (e.g., same logic with different parameters)?
+        - What core logic can be shared vs. what needs to change?
+
+        You may reference these files in your implementation plan. The coding agent
+        will have access to them and can adapt the Part 1 code rather than starting
+        from scratch.
         """
 
         if feedback:

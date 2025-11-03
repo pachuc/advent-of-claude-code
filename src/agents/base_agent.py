@@ -6,13 +6,15 @@ class ClaudeCodeException(Exception):
 
 class BaseAgent(ABC):
 
-    def __init__(self, workspace_path="./agent_workspace"):
-        """Initialize the agent with a workspace path.
+    def __init__(self, workspace_path="./agent_workspace", part=1):
+        """Initialize the agent with a workspace path and part number.
 
         Args:
             workspace_path: Path to the workspace directory where agents will run
+            part: Part number (1 or 2) of the puzzle being solved
         """
         self.workspace_path = workspace_path
+        self.part = part
 
     @abstractmethod
     def prompt(self, feedback):
@@ -28,5 +30,5 @@ class BaseAgent(ABC):
         if result.returncode != 0:
             raise Exception(f"Claude Code threw an error: {result.stderr}")
         return result.stdout
-        
+
 

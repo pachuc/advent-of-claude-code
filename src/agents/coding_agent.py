@@ -2,9 +2,9 @@ from .base_agent import BaseAgent
 
 class CodingAgent(BaseAgent):
 
-    def __init__(self, workspace_path="./agent_workspace"):
-        """Initialize CodingAgent with workspace path."""
-        super().__init__(workspace_path)
+    def __init__(self, workspace_path="./agent_workspace", part=1):
+        """Initialize CodingAgent with workspace path and part number."""
+        super().__init__(workspace_path, part)
 
     def prompt(self, feedback):
         coding_prompt = """
@@ -18,6 +18,28 @@ class CodingAgent(BaseAgent):
         The code should be written in python, and should be written to solution.py.
         Remember we are just solving this specific problem, we do not need to make production grade code. Keep it simple and to the point.
         Write a summary of what you implemented, the files you created, and how the testing process went into implementation_summary.md.
+        """
+
+        if self.part == 2:
+            coding_prompt += """
+
+        IMPORTANT - PART 2 CONTEXT:
+        You are implementing a solution for Part 2 of a multi-part puzzle. You have
+        access to Part 1 artifacts:
+
+        - part_1_solution.py: The working code that solved Part 1
+        - part_1_answer.txt: The answer computed for Part 1 (may be needed as input)
+        - part_1_problem.md: Full context of Part 1's problem
+        - part_1_puzzle.md: Original Part 1 puzzle with examples
+
+        STRONGLY CONSIDER:
+        - Can you adapt or extend part_1_solution.py rather than rewriting from scratch?
+        - Does your Part 2 solution need to use the Part 1 answer as a starting value?
+        - Can you reuse helper functions, parsing logic, or data structures from Part 1?
+        - Review part_1_solution.py to understand the approach - it may save significant time
+
+        You can read these files for reference and copy/adapt code as needed. Focus on
+        what's different in Part 2 rather than duplicating Part 1 logic unnecessarily.
         """
 
         if feedback:
