@@ -1,4 +1,4 @@
-from agents import TranslationAgent, PlanningAgent, CritiqueAgent, CodingAgent, TestingAgent
+from agents import TranslationAgent, PlanningAgent, CritiqueAgent, CodingAgent, TestingAgent, SubmissionAgent
 from aoc_client import AdventOfCodeClient
 from pathlib import Path
 import shutil
@@ -9,20 +9,27 @@ import sys
 
 class AdventSolver():
 
-    def __init__(self, workspace_path="./agent_workspace", part=1):
+    def __init__(self, workspace_path="./agent_workspace", part=1, client=None, year=None, day=None):
         """Initialize AdventSolver with workspace path and part number.
 
         Args:
             workspace_path: Path to the workspace directory where agents will run
             part: Part number (1 or 2) of the puzzle being solved
+            client: AdventOfCodeClient instance for submissions (optional)
+            year: Year of the puzzle (required if client provided)
+            day: Day of the puzzle (required if client provided)
         """
         self.workspace_path = workspace_path
         self.part = part
+        self.client = client
+        self.year = year
+        self.day = day
         self.translation_agent = TranslationAgent(workspace_path, part)
         self.planning_agent = PlanningAgent(workspace_path, part)
         self.critique_agent = CritiqueAgent(workspace_path, part)
         self.coding_agent = CodingAgent(workspace_path, part)
         self.testing_agent = TestingAgent(workspace_path, part)
+        self.submission_agent = SubmissionAgent(workspace_path, part)
 
     def parse_test_result(self, result):
         result_lines = result.strip().splitlines()
@@ -35,28 +42,153 @@ class AdventSolver():
         else:
             raise ValueError("Testing agent response must be either 'Success' or 'Failure'.")
 
-    def solve(self):
+    def parse_submission_result(self, result):
+        """Parse submission agent result to determine if submission was successful.
+
+        Args:
+            result: The output from SubmissionAgent.run_agent()
+
+        Returns:
+            True if submission was accepted, False if rejected
+
+        Raises:
+            ValueError: If the agent output doesn't end with 'Success' or 'Failure'
+        """
+        result_lines = result.strip().splitlines()
+        last_line = result_lines[-1] if result_lines else ""
+        last_line = last_line.lower()
+        if last_line == "success":
+            return True
+        elif last_line == "failure":
+            return False
+        else:
+            raise ValueError("Submission agent response must be either 'Success' or 'Failure'.")
+
+    def _run_planning_phase(self):
+        """Run the planning phase: translation, planning, critique, and plan revision.
+
+        This phase prepares the implementation and test plans before coding begins.
+        """
         print("Translating problem description...")
         self.translation_agent.run_agent()
+
         print("Planning solution...")
         self.planning_agent.run_agent()
+
         print("Critiquing plan...")
         self.critique_agent.run_agent()
+
         print("Planning revised solution...")
         self.planning_agent.run_agent(feedback=True)
-        print("Coding solution...")
-        self.coding_agent.run_agent()
 
+    def _run_testing_loop(self):
+        """Run the testing/coding feedback loop until tests pass.
+
+        Returns:
+            True when tests pass successfully
+        """
         while True:
             print("Testing solution...")
             results = self.testing_agent.run_agent()
             parsed_result = self.parse_test_result(results)
             if parsed_result:
-                print("Problem has been solved!")
+                print("Local tests passed!")
                 return True
             else:
                 print("Adjusting code based on test feedback...")
                 self.coding_agent.run_agent(feedback=True)
+
+    def solve(self):
+        # Phase 1: Planning
+        self._run_planning_phase()
+
+        # Phase 2: Implementation
+        print("Coding solution...")
+        self.coding_agent.run_agent()
+
+        # Phase 3: Testing loop (runs until tests pass)
+        self._run_testing_loop()
+
+        # Phase 4: Submission loop (if client is provided, submit and verify)
+        if self.client:
+            max_submission_attempts = 3
+            for attempt in range(max_submission_attempts):
+                print(f"\n{'='*60}")
+                print(f"  Submission Attempt {attempt + 1}/{max_submission_attempts}")
+                print(f"{'='*60}\n")
+
+                # Read answer
+                answer_file = Path(self.workspace_path) / "answer.txt"
+                if not answer_file.exists():
+                    print("\n✗ Error: answer.txt not found")
+                    print("  The testing agent should have created this file.")
+                    return False
+
+                answer = answer_file.read_text().strip()
+                print(f"Submitting Answer for Part {self.part}: {answer}\n")
+
+                # Submit answer
+                result = self.client.submit_answer(self.year, self.day, self.part, answer)
+                print(f"Status: {result['status_code']}")
+                print(f"Response:\n{result['message']}\n")
+
+                # Save submission result for agent analysis
+                result_file = Path(self.workspace_path) / "submission_result.md"
+                result_content = f"""# Submission Result
+
+                **Status Code**: {result['status_code']}
+
+                **Response Message**:
+                {result['message']}
+
+                **Raw HTML** (for reference):
+                ```html
+                {result['raw_html']}
+                ```
+                """
+                result_file.write_text(result_content)
+
+                # Analyze submission with SubmissionAgent
+                print("Analyzing submission result...")
+                analysis_result = self.submission_agent.run_agent()
+
+                # Parse result
+                try:
+                    submission_success = self.parse_submission_result(analysis_result)
+                except ValueError as e:
+                    print(f"✗ Error: {e}")
+                    return False
+
+                if submission_success:
+                    print(f"🎉 Part {self.part} solved correctly!")
+                    return True
+                else:
+                    print(f"✗ Submission attempt {attempt + 1} failed")
+
+                    if attempt < max_submission_attempts - 1:
+                        # Still have retries left - adjust code based on submission feedback
+                        self.resolve_with_submission_feedback()
+                    else:
+                        print(f"\n✗ Part {self.part} failed after {max_submission_attempts} submission attempts")
+                        return False
+
+            return False
+        else:
+            # No client provided - just return success after tests pass
+            print("Problem has been solved locally (no submission client provided)!")
+            return True
+
+    def resolve_with_submission_feedback(self):
+        """Re-run coding and testing loop with submission feedback.
+
+        Called when a solution passes local tests but fails submission.
+        The CodingAgent will read submission_issues.md for guidance.
+        """
+        print("Adjusting code based on submission feedback...")
+        self.coding_agent.run_agent(feedback=True, submission_feedback=True)
+
+        # Re-test the updated solution using the standard testing loop
+        self._run_testing_loop()
 
 
 def setup_workspace(client, year, day, part, workspace_base):
@@ -142,37 +274,22 @@ def solve_part(client, year, day, part, workspace_base):
     # Set up workspace (create dirs, fetch files, copy Part 1 artifacts if needed)
     workspace_path = setup_workspace(client, year, day, part, workspace_base)
 
-    # Run solver
+    # Run solver - it handles testing, submission, and retries internally
     print("=== Starting Solver ===\n")
-    solver = AdventSolver(workspace_path=str(workspace_path), part=part)
+    solver = AdventSolver(
+        workspace_path=str(workspace_path),
+        part=part,
+        client=client,
+        year=year,
+        day=day
+    )
     success = solver.solve()
 
     if not success:
         print(f"\n✗ Failed to solve part {part}")
         return False
 
-    # Read answer
-    answer_file = workspace_path / "answer.txt"
-    if not answer_file.exists():
-        print("\n✗ Error: answer.txt not found")
-        print("  The testing agent should have created this file.")
-        return False
-
-    answer = answer_file.read_text().strip()
-    print(f"\n=== Submitting Answer for Part {part}: {answer} ===\n")
-
-    # Submit answer
-    result = client.submit_answer(year, day, part, answer)
-    print(f"Status: {result['status_code']}")
-    print(f"Response:\n{result['message']}\n")
-
-    # Check if answer was correct
-    if "right answer" in result['message'].lower():
-        print(f"🎉 Part {part} solved correctly!")
-        return True
-    else:
-        print(f"✗ Part {part} answer was incorrect")
-        return False
+    return True
 
 
 def solve_single_day(client, year, day, workspace_base):

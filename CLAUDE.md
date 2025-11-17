@@ -16,8 +16,8 @@ The solver uses a pipeline of specialized agents, each with a specific role:
 
 2. **PlanningAgent** (`src/agents/planning_agent.py`)
    - Reads the problem and creates an implementation plan
-   - Creates `implementation_plan.md`
-   - Can be run with feedback to revise plans
+   - Creates `implementation_plan.md` and `test_plan.md`
+   - Can be run with feedback to revise plans (reads `critique.md` and updates both plan files)
 
 3. **CritiqueAgent** (`src/agents/critique_agent.py`)
    - Reviews the initial plan and provides critical feedback
@@ -30,9 +30,16 @@ The solver uses a pipeline of specialized agents, each with a specific role:
 
 5. **TestingAgent** (`src/agents/testing_agent.py`)
    - Tests the solution against examples and real input
-   - Creates `test_plan.md`
-   - Returns "Success" or "Failure"
-   - Creates `answer.txt` with the final answer
+   - **MUST** end response with exactly "Success" or "Failure" on the last line (case-insensitive)
+   - On success: creates `answer.txt` with the final answer (just the value, nothing else)
+   - On failure: creates `testing_issues.md` with issues found
+
+6. **SubmissionAgent** (`src/agents/submission_agent.py`)
+   - Analyzes the result of submitting an answer to Advent of Code
+   - Reads `submission_result.md` containing the HTTP response from AoC
+   - **MUST** end response with exactly "Success" or "Failure" on the last line (case-insensitive)
+   - On success: No additional files created
+   - On failure: creates `submission_issues.md` with detailed analysis and suggestions
 
 All agents inherit from `BaseAgent` (`src/agents/base_agent.py`) which provides:
 - Workspace management
@@ -42,30 +49,43 @@ All agents inherit from `BaseAgent` (`src/agents/base_agent.py`) which provides:
 
 ### Workflow
 
+The `AdventSolver` class orchestrates the entire solving process, from planning through submission:
+
 ```
 1. Check completion status (both parts)
    ↓
-2. For each incomplete part:
+2. For each incomplete part → AdventSolver.solve():
    ↓
-3. Translation Agent → Creates problem.md
+   ┌─────────────────────────────────────────────────┐
+   │  3. Translation Agent → Creates problem.md      │
+   │     ↓                                            │
+   │  4. Planning Agent → Creates plans              │
+   │     ↓                                            │
+   │  5. Critique Agent → Reviews plans              │
+   │     ↓                                            │
+   │  6. Planning Agent (feedback) → Updates plans   │
+   │     ↓                                            │
+   │  7. Coding Agent → Creates solution.py          │
+   │     ↓                                            │
+   │  8. Testing Loop (INFINITE retry):              │
+   │     → Testing Agent tests solution              │
+   │     → If fail: Coding Agent adjusts → retest    │
+   │     → If pass: continue to submission           │
+   │     ↓                                            │
+   │  9. Submission Loop (max 3 attempts):           │
+   │     → Submit answer to Advent of Code           │
+   │     → Submission Agent analyzes result          │
+   │     → If success: DONE                          │
+   │     → If fail AND retries left:                 │
+   │       • Coding Agent (submission feedback)      │
+   │       • Re-run testing loop (step 8)            │
+   │       • Retry submission                        │
+   │     → If fail AND no retries: FAIL              │
+   └─────────────────────────────────────────────────┘
    ↓
-4. Planning Agent → Creates implementation_plan.md
+3. If Part 1 complete: Re-check status to unlock Part 2
    ↓
-5. Critique Agent → Creates critique.md
-   ↓
-6. Planning Agent (with feedback) → Updates plan
-   ↓
-7. Coding Agent → Creates solution.py
-   ↓
-8. Testing Agent → Tests solution
-   ↓
-9. If tests fail: Coding Agent (with feedback) → goto step 8
-   ↓
-10. If tests pass: Submit answer
-   ↓
-11. If Part 1 complete: Re-check status to unlock Part 2
-   ↓
-12. If Part 2 available: goto step 2
+4. If Part 2 available: goto step 2
 ```
 
 ## File Structure
@@ -84,22 +104,30 @@ advent-of-claude-code/
 │       ├── planning_agent.py
 │       ├── critique_agent.py
 │       ├── coding_agent.py
-│       └── testing_agent.py
+│       ├── testing_agent.py
+│       └── submission_agent.py
 ├── workspace/               # Generated workspace (mounted volume)
 │   └── <year>/
 │       └── day_<day>/
 │           ├── part_1/
-│           │   ├── puzzle.md
-│           │   ├── input.md
-│           │   ├── problem.md
-│           │   ├── implementation_plan.md
-│           │   ├── critique.md
-│           │   ├── solution.py
-│           │   ├── test_plan.md
-│           │   ├── implementation_summary.md
-│           │   └── answer.txt
+│           │   ├── puzzle.md                  # Raw puzzle from AoC
+│           │   ├── input.md                   # Puzzle input
+│           │   ├── problem.md                 # Simplified problem (TranslationAgent)
+│           │   ├── implementation_plan.md     # Implementation plan (PlanningAgent)
+│           │   ├── test_plan.md               # Testing plan (PlanningAgent)
+│           │   ├── critique.md                # Plan critique (CritiqueAgent)
+│           │   ├── solution.py                # Python solution (CodingAgent)
+│           │   ├── implementation_summary.md  # Implementation notes (CodingAgent)
+│           │   ├── testing_issues.md          # Issues found (TestingAgent, only if tests failed)
+│           │   ├── answer.txt                 # Final answer (TestingAgent, only if tests success)
+│           │   ├── submission_result.md       # AoC submission response (created before SubmissionAgent)
+│           │   └── submission_issues.md       # Submission failure analysis (SubmissionAgent, only if submission failed)
 │           └── part_2/
-│               └── (same structure)
+│               ├── (same structure as part_1)
+│               ├── part_1_puzzle.md           # Copied from Part 1 (for context)
+│               ├── part_1_problem.md          # Copied from Part 1 (for context)
+│               ├── part_1_solution.py         # Copied from Part 1 (for reuse)
+│               └── part_1_answer.txt          # Copied from Part 1 (may be needed)
 ├── .env                     # AOC_SESSION and CLAUDE_API_KEY
 ├── Containerfile            # Podman/Docker container definition
 ├── Makefile                 # Build, run, solve commands
@@ -238,6 +266,41 @@ cat workspace/2015/day_1/part_1/solution.py
 cat workspace/2015/day_1/part_1/answer.txt
 ```
 
+### Command Line Interface
+
+The main script (`src/main.py`) accepts the following options:
+
+```bash
+python src/main.py --year YEAR [--day DAY | --all-days]
+```
+
+**Required:**
+- `--year YEAR` - Year of the puzzle (e.g., 2015, 2024)
+
+**Mutually Exclusive (must provide one):**
+- `--day DAY` - Solve a specific day (1-25)
+- `--all-days` - Solve all 25 days sequentially
+
+**Examples:**
+```bash
+# Solve a single day
+python src/main.py --year 2015 --day 1
+
+# Solve all 25 days
+python src/main.py --year 2015 --all-days
+```
+
+**`--all-days` Behavior:**
+- Solves days 1-25 sequentially
+- Continues to next day even if current day fails
+- Tracks results: already_complete, success, partial (Part 1 only), failed, error
+- Prints comprehensive summary at the end with star count (out of 50)
+- Shows runtime statistics
+
+**Workspace Location:**
+- Container: `/app/agent_workspace` (hardcoded in main.py)
+- Host: `./workspace` (mounted volume)
+
 ## Container Management
 
 ### Credentials Mounting
@@ -270,10 +333,24 @@ The `workspace/` directory is mounted so:
 
 ## Key Implementation Details
 
-### Multi-Part Handling
+### Solver Architecture
 
-The main script (`src/main.py`) handles both parts intelligently:
+The `AdventSolver` class (`src/main.py`) is the core orchestrator:
 
+**Initialization:**
+- Takes workspace path, part number, and optional AoC client/year/day
+- Creates all specialized agents (Translation, Planning, Critique, Coding, Testing, Submission)
+- If client is provided, handles full workflow including submission
+- If no client, runs in "local mode" (testing only, no submission)
+
+**Internal Organization:**
+The solver organizes the workflow into logical phases using helper methods:
+- `_run_planning_phase()` - Handles translation → planning → critique → plan revision
+- `_run_testing_loop()` - Handles the testing/coding feedback loop (reusable)
+- `solve()` - Orchestrates all phases: planning → coding → testing → submission
+- `resolve_with_submission_feedback()` - Adjusts code based on submission failure, re-tests
+
+**Multi-Part Handling:**
 1. **Check status before starting** - avoids redundant work
 2. **Skip completed parts** - prints cached answers
 3. **Auto-unlock part 2** - re-checks status after part 1 submission
@@ -283,20 +360,31 @@ The main script (`src/main.py`) handles both parts intelligently:
 
 - If part 1 fails: exits, doesn't attempt part 2
 - If part 2 fails: exits, but part 1 remains complete
-- If tests fail: enters feedback loop with CodingAgent (up to retry limit)
-- If submission fails: error message displayed
+- If tests fail: enters **infinite** feedback loop with CodingAgent (no retry limit)
+- If submission fails: enters submission retry loop (max 3 attempts)
+  - SubmissionAgent analyzes the failure
+  - On retry: CodingAgent reads `submission_issues.md` and adjusts solution
+  - Solution is re-tested before next submission attempt
+  - After 3 failed submissions: gives up and exits
 
 ### Agent Communication
 
 Agents communicate via files in the workspace:
 - Each agent reads specific input files
 - Each agent writes specific output files
-- Main orchestrator passes workspace path to agents
+- `AdventSolver` orchestrates all agents and passes workspace path to each
 - Agents use BaseAgent utilities to read/write files
+- Solver manages the feedback loops:
+  - Testing feedback: `testing_issues.md` → CodingAgent
+  - Submission feedback: `submission_issues.md` → CodingAgent (with `submission_feedback=True`)
+  - Plan critique: `critique.md` → PlanningAgent (with `feedback=True`)
 
 ### Testing Loop
 
+The testing/coding feedback loop is encapsulated in `AdventSolver._run_testing_loop()`:
+
 ```python
+# Simplified - actual implementation in _run_testing_loop()
 while True:
     result = testing_agent.run_agent()
     if parse_test_result(result):  # "Success"
@@ -305,7 +393,50 @@ while True:
         coding_agent.run_agent(feedback=True)
 ```
 
-The testing agent must return exactly "Success" or "Failure" as the last line.
+**Important Details:**
+- **No retry limit** - loop continues indefinitely until success
+- Testing agent must return exactly "Success" or "Failure" as the last line (case-insensitive)
+- `parse_test_result()` raises `ValueError` if last line is neither "success" nor "failure"
+- On failure, CodingAgent reads `testing_issues.md` and updates `solution.py`
+- Reused by both initial solve and submission feedback loops
+
+### Submission Loop (Integrated into Solver)
+
+After tests pass, `AdventSolver.solve()` automatically enters the submission loop:
+
+```python
+# Inside AdventSolver.solve(), after testing loop passes:
+if self.client:  # Only if client was provided
+    for attempt in range(max_submission_attempts):  # max = 3
+        # Submit answer to Advent of Code
+        result = self.client.submit_answer(self.year, self.day, self.part, answer)
+
+        # Save result to submission_result.md
+        write_submission_result(result)
+
+        # Analyze with SubmissionAgent
+        analysis = self.submission_agent.run_agent()
+
+        if self.parse_submission_result(analysis):  # "Success"
+            return True
+        else:  # "Failure"
+            if attempt < max_attempts - 1:
+                # Adjust code based on submission feedback
+                self.resolve_with_submission_feedback()
+            else:
+                return False  # Give up after 3 attempts
+else:
+    # No client - just return success after tests pass
+    return True
+```
+
+**Important Details:**
+- **Hard limit of 3 attempts** - prevents infinite submission spam
+- SubmissionAgent analyzes AoC response (status code, message, HTML)
+- On failure, creates `submission_issues.md` with detailed analysis
+- CodingAgent receives submission feedback via `submission_feedback=True` parameter
+- Solution is re-tested after adjustments before next submission attempt
+- Common failure modes detected: "too high", "too low", rate limiting, wrong format
 
 ## Advent of Code API Notes
 
@@ -461,5 +592,5 @@ Advent of Code has rate limits:
 
 ---
 
-**Last Updated**: 2025-10-28
+**Last Updated**: 2025-11-16
 **Maintainer Notes**: Keep this document updated when making architectural changes or discovering new AoC behavior patterns.

@@ -1,4 +1,5 @@
 from .base_agent import BaseAgent
+import subprocess
 
 class CodingAgent(BaseAgent):
 
@@ -6,7 +7,7 @@ class CodingAgent(BaseAgent):
         """Initialize CodingAgent with workspace path and part number."""
         super().__init__(workspace_path, part)
 
-    def prompt(self, feedback):
+    def prompt(self, feedback, submission_feedback=False):
         coding_prompt = """
         You are a coding agent meant to develop a solution to a given problem.
         The problem can be found in problem.md.
@@ -43,7 +44,31 @@ class CodingAgent(BaseAgent):
         """
 
         if feedback:
-            coding_prompt = coding_prompt + """
+            if submission_feedback:
+                coding_prompt = coding_prompt + """
+
+            <SUBMISSION_FEEDBACK>
+            Your solution passed all local tests, but the submission to Advent of Code was rejected.
+            Feedback from the submission analysis can be found in submission_issues.md.
+
+            This typically means:
+            - Your solution works for test cases but not for the full input
+            - There may be edge cases you're not handling correctly
+            - Your answer might be slightly off (too high, too low, wrong format)
+            - You may have misunderstood part of the problem statement
+
+            Review the submission feedback carefully. The Advent of Code response often provides
+            hints like "too high" or "too low" which can guide you to the issue.
+
+            Your original implementation summary can be found in implementation_summary.md
+            Your original solution can be found in solution.py
+
+            Based on the submission feedback, adjust your solution and ensure it handles all edge cases.
+            Update implementation_summary.md with what you changed and why.
+            </SUBMISSION_FEEDBACK>
+            """
+            else:
+                coding_prompt = coding_prompt + """
 
             <UPDATE>
             This is actually your 2nd time implementing this.
@@ -56,3 +81,23 @@ class CodingAgent(BaseAgent):
             """
 
         return coding_prompt
+
+    def run_agent(self, feedback=False, submission_feedback=False):
+        """Run the coding agent with optional feedback flags.
+
+        Args:
+            feedback: If True, agent will read testing_issues.md for test feedback
+            submission_feedback: If True, agent will read submission_issues.md for submission feedback
+
+        Returns:
+            The stdout from the Claude Code CLI
+        """
+        result = subprocess.run(
+            ["claude", "-p", self.prompt(feedback, submission_feedback), "--dangerously-skip-permissions"],
+            cwd=self.workspace_path,
+            capture_output=True,
+            text=True
+        )
+        if result.returncode != 0:
+            raise Exception(f"Claude Code threw an error: {result.stderr}")
+        return result.stdout
