@@ -45,6 +45,7 @@ class AdventSolver():
 
         This is a no-op if no callback was provided, preserving CLI behavior.
         """
+        print(f"[{stage.upper()}] {message}")
         if self.progress_callback:
             self.progress_callback(stage, message, attempt, answer, error)
 
@@ -87,19 +88,15 @@ class AdventSolver():
         This phase prepares the implementation and test plans before coding begins.
         """
         self._report("translation", "Translating problem description...")
-        print("Translating problem description...")
         self.translation_agent.run_agent()
 
         self._report("planning", "Creating implementation plan...")
-        print("Planning solution...")
         self.planning_agent.run_agent()
 
         self._report("critique", "Reviewing and critiquing plan...")
-        print("Critiquing plan...")
         self.critique_agent.run_agent()
 
         self._report("revision", "Revising plan based on critique...")
-        print("Planning revised solution...")
         self.planning_agent.run_agent(feedback=True)
 
     def _run_testing_loop(self):
@@ -112,15 +109,12 @@ class AdventSolver():
         while True:
             test_attempt += 1
             self._report("testing", f"Running tests (attempt {test_attempt})...", attempt=test_attempt)
-            print("Testing solution...")
             results = self.testing_agent.run_agent()
             parsed_result = self.parse_test_result(results)
             if parsed_result:
-                print("Local tests passed!")
                 return True
             else:
                 self._report("coding", f"Adjusting code based on test feedback (attempt {test_attempt})...", attempt=test_attempt)
-                print("Adjusting code based on test feedback...")
                 self.coding_agent.run_agent(feedback=True)
 
     def solve(self):
@@ -129,7 +123,6 @@ class AdventSolver():
 
         # Phase 2: Implementation
         self._report("coding", "Writing initial solution...")
-        print("Coding solution...")
         self.coding_agent.run_agent()
 
         # Phase 3: Testing loop (runs until tests pass)
@@ -140,25 +133,18 @@ class AdventSolver():
             max_submission_attempts = 3
             for attempt in range(max_submission_attempts):
                 self._report("submitting", f"Submitting answer (attempt {attempt + 1}/{max_submission_attempts})...", attempt=attempt + 1)
-                print(f"\n{'='*60}")
-                print(f"  Submission Attempt {attempt + 1}/{max_submission_attempts}")
-                print(f"{'='*60}\n")
 
                 # Read answer
                 answer_file = Path(self.workspace_path) / "answer.txt"
                 if not answer_file.exists():
                     self._report("failed", "Error: answer.txt not found", error="answer.txt not found")
-                    print("\n✗ Error: answer.txt not found")
-                    print("  The testing agent should have created this file.")
                     return False
 
                 answer = answer_file.read_text().strip()
-                print(f"Submitting Answer for Part {self.part}: {answer}\n")
+                self._report("submitting", f"Submitting answer for Part {self.part}: {answer}", attempt=attempt + 1, answer=answer)
 
                 # Submit answer
                 result = self.client.submit_answer(self.year, self.day, self.part, answer)
-                print(f"Status: {result['status_code']}")
-                print(f"Response:\n{result['message']}\n")
 
                 # Save submission result for agent analysis
                 result_file = Path(self.workspace_path) / "submission_result.md"
@@ -177,7 +163,7 @@ class AdventSolver():
                 result_file.write_text(result_content)
 
                 # Analyze submission with SubmissionAgent
-                print("Analyzing submission result...")
+                self._report("submitting", "Analyzing submission result...", attempt=attempt + 1)
                 analysis_result = self.submission_agent.run_agent()
 
                 # Parse result
@@ -185,22 +171,19 @@ class AdventSolver():
                     submission_success = self.parse_submission_result(analysis_result)
                 except ValueError as e:
                     self._report("failed", f"Error parsing submission result: {e}", error=str(e))
-                    print(f"✗ Error: {e}")
                     return False
 
                 if submission_success:
                     self._report("completed", f"Part {self.part} solved correctly!", answer=answer)
-                    print(f"🎉 Part {self.part} solved correctly!")
                     return True
                 else:
-                    print(f"✗ Submission attempt {attempt + 1} failed")
+                    self._report("submitting", f"Submission rejected (attempt {attempt + 1}/{max_submission_attempts})", attempt=attempt + 1, answer=answer)
 
                     if attempt < max_submission_attempts - 1:
                         # Still have retries left - adjust code based on submission feedback
                         self.resolve_with_submission_feedback()
                     else:
                         self._report("failed", f"Part {self.part} failed after {max_submission_attempts} attempts", error="Max submission attempts reached")
-                        print(f"\n✗ Part {self.part} failed after {max_submission_attempts} submission attempts")
                         return False
 
             return False
@@ -211,10 +194,8 @@ class AdventSolver():
             answer = answer_file.read_text().strip() if answer_file.exists() else None
             if self.skip_submission:
                 self._report("completed", "Solution verified locally (practice mode)", answer=answer)
-                print("Solution verified locally (practice mode - skipping AoC submission)!")
             else:
                 self._report("completed", "Problem solved locally (no submission client)", answer=answer)
-                print("Problem has been solved locally (no submission client provided)!")
             return True
 
     def resolve_with_submission_feedback(self):
@@ -224,10 +205,7 @@ class AdventSolver():
         The CodingAgent will read submission_issues.md for guidance.
         """
         self._report("coding", "Adjusting code based on submission feedback...")
-        print("Adjusting code based on submission feedback...")
         self.coding_agent.run_agent(feedback=True, submission_feedback=True)
-
-        # Re-test the updated solution using the standard testing loop
         self._run_testing_loop()
 
 
