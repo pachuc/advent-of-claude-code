@@ -32,6 +32,7 @@ class RaceStartRequest(BaseModel):
     year: int
     day: int
     aoc_session: str
+    fast_mode: bool = False  # Use one-shot solver instead of multi-agent
 
 
 class RaceStartResponse(BaseModel):
@@ -79,10 +80,14 @@ async def start_race(request: RaceStartRequest):
         if not session:
             raise HTTPException(status_code=400, detail="AOC session token required")
 
+        # Determine solver strategy based on fast_mode
+        strategy = "one-shot" if request.fast_mode else "default"
+
         result = race_manager.start_race(
             year=request.year,
             day=request.day,
-            aoc_session=session
+            aoc_session=session,
+            strategy=strategy
         )
         return RaceStartResponse(**result)
 

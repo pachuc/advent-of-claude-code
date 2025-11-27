@@ -20,6 +20,7 @@ class SolverStage(Enum):
     REVISION = "revision"
     CODING = "coding"
     TESTING = "testing"
+    SOLVING = "solving"  # One-shot mode: combined solve stage
     SUBMITTING = "submitting"
     COMPLETED = "completed"
     FAILED = "failed"

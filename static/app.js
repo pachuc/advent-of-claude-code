@@ -9,6 +9,7 @@ const state = {
     currentPart: 1,
     startTime: null,
     pollInterval: null,
+    fastMode: false,
 
     // Race results
     part1: {
@@ -27,18 +28,52 @@ const state = {
     puzzlePart2: null
 };
 
-// Stage weights for progress calculation
-const STAGE_WEIGHTS = {
-    translation: 10,
-    planning: 15,
-    critique: 10,
-    revision: 10,
-    coding: 20,
-    testing: 20,
-    submitting: 15
+// Stage configurations for different solver modes
+const MULTI_AGENT_STAGES = {
+    order: ['translation', 'planning', 'critique', 'revision', 'coding', 'testing', 'submitting'],
+    weights: { translation: 10, planning: 15, critique: 10, revision: 10, coding: 20, testing: 20, submitting: 15 }
 };
 
-const STAGES_ORDER = ['translation', 'planning', 'critique', 'revision', 'coding', 'testing', 'submitting'];
+const ONE_SHOT_STAGES = {
+    order: ['solving', 'submitting'],
+    weights: { solving: 70, submitting: 30 }
+};
+
+// Stage display names
+const STAGE_NAMES = {
+    translation: 'Translation',
+    planning: 'Planning',
+    critique: 'Critique',
+    revision: 'Revision',
+    coding: 'Coding',
+    testing: 'Testing',
+    submitting: 'Submission',
+    solving: 'Solving'
+};
+
+// Helper to get current stage config based on mode
+function getStageConfig() {
+    return state.fastMode ? ONE_SHOT_STAGES : MULTI_AGENT_STAGES;
+}
+
+// Build stage checklist dynamically based on mode
+function buildStageChecklist() {
+    const config = getStageConfig();
+    const checklist = elements.stageChecklist;
+    checklist.innerHTML = '';
+
+    config.order.forEach(stage => {
+        const li = document.createElement('li');
+        li.dataset.stage = stage;
+        li.className = 'pending';
+        li.innerHTML = `
+            <span class="stage-icon"></span>
+            <span class="stage-name">${STAGE_NAMES[stage] || stage}</span>
+            <span class="stage-time">--</span>
+        `;
+        checklist.appendChild(li);
+    });
+}
 
 // DOM Elements
 const elements = {
@@ -53,6 +88,7 @@ const elements = {
     toggleTokenBtn: document.getElementById('toggle-token'),
     yearSelect: document.getElementById('year'),
     daySelect: document.getElementById('day'),
+    fastModeCheckbox: document.getElementById('fast-mode'),
     startBtn: document.getElementById('start-race-btn'),
     setupError: document.getElementById('setup-error'),
 
@@ -163,11 +199,11 @@ async function fetchConfig() {
     }
 }
 
-async function startRace(year, day, token) {
+async function startRace(year, day, token, fastMode = false) {
     const response = await fetch('/api/race/start', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ year, day, aoc_session: token })
+        body: JSON.stringify({ year, day, aoc_session: token, fast_mode: fastMode })
     });
     return await response.json();
 }
@@ -194,13 +230,14 @@ async function resetRace() {
 function updateProgress(status) {
     const part = state.currentPart === 1 ? status.part1 : status.part2;
     const claudeStatus = part.claude;
+    const stageConfig = getStageConfig();
 
     // Update stage checklist
     const currentStage = claudeStatus.stage;
     let progress = 0;
     let foundCurrent = false;
 
-    STAGES_ORDER.forEach((stage, index) => {
+    stageConfig.order.forEach((stage, index) => {
         const li = elements.stageChecklist.querySelector(`[data-stage="${stage}"]`);
         if (!li) return;
 
@@ -210,11 +247,11 @@ function updateProgress(status) {
             li.classList.add('active');
             foundCurrent = true;
             // Add partial progress for current stage
-            progress += STAGE_WEIGHTS[stage] * 0.5;
+            progress += stageConfig.weights[stage] * 0.5;
         } else if (!foundCurrent && currentStage) {
             // Before current stage - completed
             li.classList.add('completed');
-            progress += STAGE_WEIGHTS[stage];
+            progress += stageConfig.weights[stage];
         } else {
             li.classList.add('pending');
         }
@@ -223,7 +260,7 @@ function updateProgress(status) {
     // Handle completed state
     if (claudeStatus.status === 'completed') {
         progress = 100;
-        STAGES_ORDER.forEach(stage => {
+        stageConfig.order.forEach(stage => {
             const li = elements.stageChecklist.querySelector(`[data-stage="${stage}"]`);
             if (li) {
                 li.classList.remove('active', 'pending');
@@ -396,16 +433,21 @@ function setupEventListeners() {
         const year = parseInt(elements.yearSelect.value);
         const day = parseInt(elements.daySelect.value);
         const token = elements.tokenInput.value.trim();
+        const fastMode = elements.fastModeCheckbox.checked;
 
         elements.startBtn.disabled = true;
         elements.startBtn.textContent = 'Starting...';
 
         try {
-            const result = await startRace(year, day, token);
+            const result = await startRace(year, day, token, fastMode);
 
             if (result.success) {
                 state.racing = true;
+                state.fastMode = fastMode;
                 state.puzzlePart1 = result.puzzle_part1;
+
+                // Build stage checklist based on mode
+                buildStageChecklist();
 
                 // Update UI
                 elements.puzzleTitle.textContent = result.puzzle_title || `Day ${day}`;
@@ -533,6 +575,7 @@ function resetState() {
     state.racing = false;
     state.currentPart = 1;
     state.startTime = null;
+    state.fastMode = false;
     state.puzzlePart1 = null;
     state.puzzlePart2 = null;
     state.part1 = { userTime: null, claudeTime: null, winner: null };
@@ -546,11 +589,8 @@ function resetState() {
     elements.progressPercent.textContent = '0%';
     elements.currentStage.textContent = 'Waiting...';
 
-    // Reset stage checklist
-    document.querySelectorAll('.stage-list li').forEach(li => {
-        li.classList.remove('completed', 'active');
-        li.classList.add('pending');
-    });
+    // Reset stage checklist to default (multi-agent)
+    buildStageChecklist();
 
     // Reset tabs
     elements.tabBtns.forEach(btn => {
@@ -646,8 +686,12 @@ async function checkExistingRace() {
         if (status.status === 'racing') {
             // Restore race state
             state.racing = true;
+            state.fastMode = (status.strategy === 'one-shot' || status.strategy === 'fast');
             state.puzzlePart1 = status.puzzle_part1;
             state.puzzlePart2 = status.puzzle_part2;
+
+            // Build stage checklist based on restored mode
+            buildStageChecklist();
 
             // Restore timer from server elapsed time
             state.startTime = Date.now() - (status.elapsed_seconds * 1000);
@@ -705,6 +749,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     await initializeDropdowns();
     setupEventListeners();
     setupTokenInputHandler();
+
+    // Build initial stage checklist (will be rebuilt when race starts)
+    buildStageChecklist();
 
     // Check if there's an existing race to restore
     await checkExistingRace();

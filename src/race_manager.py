@@ -15,7 +15,8 @@ from threading import Lock
 
 from src.progress import ProgressTracker, ProgressUpdate, SolverStage, create_progress_callback
 from src.aoc_client import AdventOfCodeClient
-from src.main import AdventSolver, setup_workspace
+from src.main import setup_workspace
+from src.solvers import SolverFactory
 
 
 WORKSPACE_BASE = "/app/agent_workspace"
@@ -70,6 +71,9 @@ class RaceManager:
         # Practice mode flag - True when racing on already-completed puzzles
         self.is_practice_mode: bool = False
 
+        # Solver strategy (default or one-shot)
+        self.strategy: str = "default"
+
         self.progress_tracker = ProgressTracker()
         self._solver_thread: Optional[threading.Thread] = None
         self._stop_requested = False
@@ -89,13 +93,14 @@ class RaceManager:
             return 0.0
         return time.time() - self.start_time
 
-    def start_race(self, year: int, day: int, aoc_session: str) -> Dict[str, Any]:
+    def start_race(self, year: int, day: int, aoc_session: str, strategy: str = "default") -> Dict[str, Any]:
         """Start a new race.
 
         Args:
             year: Puzzle year
             day: Puzzle day (1-25)
             aoc_session: AOC session token
+            strategy: Solver strategy ("default", "one-shot", "fast")
 
         Returns:
             Dict with puzzle content and race info
@@ -151,12 +156,13 @@ class RaceManager:
 
             self.part1.claude.status = "running"
             self.part1.user.status = "pending"
+            self.strategy = strategy
 
             # Start solver in background thread
             self._stop_requested = False
             self._solver_thread = threading.Thread(
                 target=self._run_solver,
-                args=(year, day, aoc_session, self.is_practice_mode),
+                args=(year, day, aoc_session, self.is_practice_mode, strategy),
                 daemon=True
             )
             self._solver_thread.start()
@@ -168,7 +174,7 @@ class RaceManager:
                 "input_url": self.input_url
             }
 
-    def _run_solver(self, year: int, day: int, aoc_session: str, practice_mode: bool = False):
+    def _run_solver(self, year: int, day: int, aoc_session: str, practice_mode: bool = False, strategy: str = "default"):
         """Run the solver in a background thread.
 
         Args:
@@ -176,12 +182,13 @@ class RaceManager:
             day: Puzzle day
             aoc_session: AOC session token
             practice_mode: If True, skip AoC submission (for already-completed puzzles)
+            strategy: Solver strategy ("default", "one-shot", "fast")
         """
         try:
             client = AdventOfCodeClient(session_token=aoc_session)
 
             # Solve Part 1
-            self._solve_part(client, year, day, 1, practice_mode)
+            self._solve_part(client, year, day, 1, practice_mode, strategy)
 
             if self._stop_requested:
                 return
@@ -194,7 +201,7 @@ class RaceManager:
                         self.puzzle_part2 = puzzle2_data["markdown"]
                         self.part2.claude.status = "running"
 
-                    self._solve_part(client, year, day, 2, practice_mode)
+                    self._solve_part(client, year, day, 2, practice_mode, strategy)
                 except ValueError as e:
                     # Part 2 not available yet
                     with self._lock:
@@ -220,7 +227,7 @@ class RaceManager:
                     error=str(e)
                 ))
 
-    def _solve_part(self, client: AdventOfCodeClient, year: int, day: int, part: int, practice_mode: bool = False):
+    def _solve_part(self, client: AdventOfCodeClient, year: int, day: int, part: int, practice_mode: bool = False, strategy: str = "default"):
         """Solve a single part of the puzzle.
 
         Args:
@@ -229,6 +236,7 @@ class RaceManager:
             day: Puzzle day
             part: Part number (1 or 2)
             practice_mode: If True, skip AoC submission (for already-completed puzzles)
+            strategy: Solver strategy ("default", "one-shot", "fast")
         """
         if self._stop_requested:
             return
@@ -266,15 +274,17 @@ class RaceManager:
         # (handles partial completion: Part 1 done, Part 2 not done)
         skip_submission_for_part = part_state.correct_answer is not None
 
-        # Run solver
-        solver = AdventSolver(
+        # Run solver using factory
+        solver = SolverFactory.create(
+            strategy,
             workspace_path=str(workspace_path),
             part=part,
             client=client,
             year=year,
             day=day,
             progress_callback=on_progress,
-            skip_submission=skip_submission_for_part
+            skip_submission=skip_submission_for_part,
+            correct_answer=part_state.correct_answer
         )
 
         success = solver.solve()
@@ -511,6 +521,7 @@ class RaceManager:
 
             return {
                 "status": self.status,
+                "strategy": self.strategy,
                 "elapsed_seconds": self.get_elapsed_seconds(),
                 "year": self.year,
                 "day": self.day,

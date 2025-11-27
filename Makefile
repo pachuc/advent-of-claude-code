@@ -25,12 +25,18 @@ logs:
 
 solve:
 	@if [ -z "$(YEAR)" ]; then \
-		echo "Usage: make solve YEAR=2024 [DAY=1]"; \
+		echo "Usage: make solve YEAR=2024 [DAY=1] [FAST=1]"; \
 		echo "  Provide YEAR to solve all 25 days"; \
 		echo "  Provide YEAR and DAY to solve a specific day"; \
+		echo "  Add FAST=1 to use the fast one-shot solver"; \
 		exit 1; \
 	fi
 	@if [ -f .env ]; then \
+		FAST_FLAG=""; \
+		if [ -n "$(FAST)" ]; then \
+			FAST_FLAG="--fast"; \
+			echo "Using fast one-shot solver..."; \
+		fi; \
 		if [ -z "$(DAY)" ]; then \
 			echo "Solving all days for AoC $(YEAR)..."; \
 			set -a; . $$(pwd)/.env; set +a; \
@@ -42,7 +48,7 @@ solve:
 				-v $$(pwd)/workspace:/app/agent_workspace:z \
 				-v $$HOME/.claude:/root/.claude:z \
 				advent-of-claude-code:latest \
-				python -u -m src.main --year $(YEAR) --all-days; \
+				python -u -m src.main --year $(YEAR) --all-days $$FAST_FLAG; \
 		else \
 			echo "Solving AoC $(YEAR) Day $(DAY)..."; \
 			set -a; . $$(pwd)/.env; set +a; \
@@ -54,7 +60,7 @@ solve:
 				-v $$(pwd)/workspace:/app/agent_workspace:z \
 				-v $$HOME/.claude:/root/.claude:z \
 				advent-of-claude-code:latest \
-				python -u -m src.main --year $(YEAR) --day $(DAY); \
+				python -u -m src.main --year $(YEAR) --day $(DAY) $$FAST_FLAG; \
 		fi \
 	else \
 		echo "Must provide .env file with AOC_SESSION"; \
