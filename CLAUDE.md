@@ -1,8 +1,97 @@
 # Advent of Claude Code - Development Reference
 
+> **Last Updated**: 2025-11-26
+> **Maintainer Notes**: Keep this document updated when making architectural changes or discovering new AoC behavior patterns.
+
+## Table of Contents
+
+1. [Project Overview](#project-overview)
+2. [Quick Start](#quick-start)
+3. [Architecture](#architecture)
+   - [Multi-Agent System](#multi-agent-system)
+   - [Workflow](#workflow)
+4. [File Structure](#file-structure)
+5. [Advent of Code Client](#advent-of-code-client)
+6. [Development Workflow](#development-workflow)
+7. [Container Management](#container-management)
+8. [Key Implementation Details](#key-implementation-details)
+9. [Advent of Code API Notes](#advent-of-code-api-notes)
+10. [Common Issues & Solutions](#common-issues--solutions)
+11. [Architecture Decisions](#architecture-decisions)
+12. [Future Improvements](#future-improvements)
+13. [References](#references)
+
+---
+
 ## Project Overview
 
 This project uses AI agents powered by Claude Code to automatically solve Advent of Code puzzles. The system fetches puzzles, plans solutions, writes code, tests it, and submits answers - handling both Part 1 and Part 2 automatically.
+
+**Key Features:**
+- Fully automated solving pipeline (no human in the loop)
+- Multi-agent architecture with specialized roles
+- Automatic submission with retry logic
+- Handles both Part 1 and Part 2 sequentially
+- Built-in testing and feedback loops
+
+## Quick Start
+
+```bash
+# 1. Clone and navigate to repo
+cd advent-of-claude-code
+
+# 2. Extract your AOC session cookie (see COOKIE_EXTRACTION.md for detailed guide)
+# Quick method: Open browser console at adventofcode.com and run:
+# document.cookie.split('; ').find(c => c.startsWith('session=')).split('=')[1]
+
+# 3. Create .env file with credentials
+cp .env.example .env
+# Edit .env and add your AOC_SESSION value
+
+# 4. Build the container
+make build
+
+# 5. Solve a specific day
+make solve YEAR=2015 DAY=1
+
+# 6. Or solve all 25 days
+make solve YEAR=2015
+```
+
+For detailed cookie extraction instructions, see [COOKIE_EXTRACTION.md](COOKIE_EXTRACTION.md).
+
+### Quick Reference
+
+**Common Commands:**
+```bash
+make build               # Build container
+make solve YEAR=Y DAY=D  # Solve specific day
+make solve YEAR=Y        # Solve all 25 days
+make debug               # Interactive shell
+make clean               # Remove container
+```
+
+**Key Files & Locations:**
+```
+Host                                Container
+./workspace/                    →   /app/agent_workspace/
+~/.claude/                      →   /root/.claude/
+./.env                          →   (passed as env vars)
+```
+
+**Workspace Structure:**
+```
+workspace/YEAR/day_DAY/part_PART/
+├── puzzle.md              (input from AoC)
+├── input.md               (input from AoC)
+├── problem.md             (TranslationAgent)
+├── implementation_plan.md (PlanningAgent)
+├── test_plan.md           (PlanningAgent)
+├── critique.md            (CritiqueAgent)
+├── solution.py            (CodingAgent)
+├── answer.txt             (TestingAgent - on success)
+└── *_issues.md            (various agents - on failure)
+```
 
 ## Architecture
 
@@ -42,10 +131,35 @@ The solver uses a pipeline of specialized agents, each with a specific role:
    - On failure: creates `submission_issues.md` with detailed analysis and suggestions
 
 All agents inherit from `BaseAgent` (`src/agents/base_agent.py`) which provides:
-- Workspace management
-- File reading/writing utilities
-- Claude Code CLI integration
-- System prompt construction
+- Workspace management (workspace_path and part number tracking)
+- Claude Code CLI integration via subprocess
+- Abstract `prompt(feedback)` method that must be implemented
+- `run_agent(feedback=False)` method that executes the Claude Code CLI
+- Automatic error handling for CLI failures
+
+**BaseAgent Implementation:**
+```python
+class BaseAgent(ABC):
+    def __init__(self, workspace_path, part):
+        self.workspace_path = workspace_path
+        self.part = part
+
+    @abstractmethod
+    def prompt(self, feedback):
+        """Each agent implements its own prompt template"""
+        pass
+
+    def run_agent(self, feedback=False):
+        """Runs claude CLI with the agent's prompt in the workspace"""
+        subprocess.run(
+            ["claude", "-p", self.prompt(feedback), "--dangerously-skip-permissions"],
+            cwd=self.workspace_path,
+            capture_output=True,
+            text=True
+        )
+```
+
+**Note:** CodingAgent overrides `run_agent()` to accept an additional `submission_feedback` parameter.
 
 ### Workflow
 
@@ -98,14 +212,15 @@ advent-of-claude-code/
 │   ├── main.py              # Entry point, orchestrates the workflow
 │   ├── aoc_client.py        # Advent of Code API client
 │   └── agents/
-│       ├── __init__.py
-│       ├── base_agent.py
-│       ├── translation_agent.py
-│       ├── planning_agent.py
-│       ├── critique_agent.py
-│       ├── coding_agent.py
-│       ├── testing_agent.py
-│       └── submission_agent.py
+│       ├── __init__.py           # Dynamic agent exports
+│       ├── base_agent.py         # Base class for all agents
+│       ├── translation_agent.py  # Simplifies puzzle description
+│       ├── planning_agent.py     # Creates implementation & test plans
+│       ├── critique_agent.py     # Reviews and critiques plans
+│       ├── coding_agent.py       # Implements the solution
+│       ├── testing_agent.py      # Tests and verifies solution
+│       ├── submission_agent.py   # Analyzes submission results
+│       └── simple_agent.py       # Example/test agent (not used in pipeline)
 ├── workspace/               # Generated workspace (mounted volume)
 │   └── <year>/
 │       └── day_<day>/
@@ -128,11 +243,16 @@ advent-of-claude-code/
 │               ├── part_1_problem.md          # Copied from Part 1 (for context)
 │               ├── part_1_solution.py         # Copied from Part 1 (for reuse)
 │               └── part_1_answer.txt          # Copied from Part 1 (may be needed)
-├── .env                     # AOC_SESSION and CLAUDE_API_KEY
+├── .env                     # AOC_SESSION env var (git-ignored)
+├── .env.example             # Template for environment variables
+├── .gitignore               # Git ignore rules (workspace/, .env, etc.)
 ├── Containerfile            # Podman/Docker container definition
-├── Makefile                 # Build, run, solve commands
+├── Makefile                 # Build, run, solve, debug commands
 ├── requirements.txt         # Python dependencies
-└── CLAUDE.md               # This file
+├── README.md                # Project overview and high-level description
+├── CLAUDE.md                # This file - comprehensive development reference
+├── COOKIE_EXTRACTION.md     # Detailed guide for extracting AOC session cookie
+└── flow_chart.png           # Visual diagram of the agent workflow
 ```
 
 ### Workspace Organization
@@ -203,11 +323,17 @@ Saves input to: `{output_dir}/{year}/day_{day}/part_{part}/input.md`
 
 ### Authentication
 
-Requires AOC session cookie from browser:
-1. Log in to adventofcode.com
-2. Open browser dev tools → Application/Storage → Cookies
-3. Copy the `session` cookie value
-4. Add to `.env`: `AOC_SESSION=<cookie_value>`
+The client requires your AOC session cookie to make authenticated requests.
+
+**Quick Setup:**
+1. Copy the example environment file: `cp .env.example .env`
+2. Follow the detailed extraction guide in [COOKIE_EXTRACTION.md](COOKIE_EXTRACTION.md)
+3. Add your session value to `.env`: `AOC_SESSION=<your_cookie_value>`
+
+**Security Notes:**
+- Session tokens are valid for ~30 days
+- The `.env` file is git-ignored (never commit it)
+- Tokens can be revoked from your AoC account settings
 
 ## Development Workflow
 
@@ -217,28 +343,51 @@ Requires AOC session cookie from browser:
 # Clone and navigate to repo
 cd advent-of-claude-code
 
-# Create .env file with credentials
-cat > .env << EOF
-AOC_SESSION=your_aoc_session_cookie_here
-CLAUDE_API_KEY=your_claude_api_key_here
-EOF
+# Create .env file from template
+cp .env.example .env
+
+# Edit .env and add your AOC_SESSION value
+# See COOKIE_EXTRACTION.md for detailed extraction instructions
 
 # Build the container
 make build
 ```
 
+**Environment Variables:**
+- `AOC_SESSION` (required): Your Advent of Code session cookie
+- `IS_SANDBOX` (auto-set): Set to `1` by Makefile to indicate container environment
+- `PYTHONUNBUFFERED` (auto-set): Set to `1` for real-time output in container
+
+**Note:** Claude API credentials are mounted from `~/.claude/.credentials.json`, not stored in `.env`.
+
 ### Solving Puzzles
 
+**Available Make Commands:**
+
 ```bash
+# Build the container image
+make build
+
 # Solve a specific day (handles both parts automatically)
 make solve YEAR=2015 DAY=1
 
-# The script will:
-# - Check which parts are complete
-# - Skip completed parts
-# - Solve incomplete parts
-# - Automatically proceed from part 1 to part 2
+# Solve all 25 days for a year
+make solve YEAR=2015
+
+# Start interactive debug shell in container
+make debug
+
+# Clean up container and image
+make clean
 ```
+
+**Solve Behavior:**
+The script automatically:
+- Checks which parts are already complete
+- Skips completed parts (shows cached answers)
+- Solves incomplete parts in order (Part 1 → Part 2)
+- Re-checks status after Part 1 to unlock Part 2
+- Provides comprehensive summary when using `--all-days`
 
 ### Debugging
 
@@ -303,6 +452,21 @@ python src/main.py --year 2015 --all-days
 
 ## Container Management
 
+### Container Image Details
+
+**Base Image:** `python:3.11-slim`
+
+**Installed Dependencies:**
+- Python packages (from `requirements.txt`)
+- Node.js and npm (required for Claude Code CLI)
+- Claude Code CLI (`@anthropic-ai/claude-code`)
+
+**Working Directory:** `/app`
+
+**Agent Workspace:** `/app/agent_workspace` (mounted from host `./workspace`)
+
+The Containerfile sets up a complete environment with all required dependencies and tools pre-installed.
+
 ### Credentials Mounting
 
 The container mounts your local `~/.claude` directory:
@@ -355,6 +519,26 @@ The solver organizes the workflow into logical phases using helper methods:
 2. **Skip completed parts** - prints cached answers
 3. **Auto-unlock part 2** - re-checks status after part 1 submission
 4. **Isolated workspaces** - each part has its own directory
+5. **Part 1 context for Part 2** - copies artifacts for reuse (see below)
+
+### Part 2 Context System
+
+When solving Part 2, the system automatically copies Part 1 artifacts to provide context:
+
+**Copied Files:**
+- `part_1_puzzle.md` - Original Part 1 puzzle text
+- `part_1_problem.md` - Simplified Part 1 problem description
+- `part_1_solution.py` - Working Part 1 code (can be adapted/reused)
+- `part_1_answer.txt` - Part 1 answer (may be needed as input)
+
+**Agent Awareness:**
+All agents (Translation, Planning, Critique, Coding, Testing) receive special prompts when `part == 2` that:
+- Alert them to the availability of Part 1 artifacts
+- Encourage code reuse and adaptation over rewriting
+- Suggest checking if Part 2 builds on Part 1's algorithm
+- Remind them that Part 2 descriptions are often brief and assume Part 1 context
+
+This dramatically improves solving efficiency and success rate for Part 2 puzzles.
 
 ### Error Handling
 
@@ -592,5 +776,20 @@ Advent of Code has rate limits:
 
 ---
 
-**Last Updated**: 2025-11-16
-**Maintainer Notes**: Keep this document updated when making architectural changes or discovering new AoC behavior patterns.
+## Additional Resources
+
+### Project Files
+
+- **README.md**: High-level project overview and goals
+- **COOKIE_EXTRACTION.md**: Comprehensive guide for extracting your AOC session cookie
+- **flow_chart.png**: Visual diagram of the agent workflow pipeline
+- **.env.example**: Template for setting up environment variables
+- **.gitignore**: Ensures sensitive files (`.env`, `workspace/`) are not committed
+
+### Development Notes
+
+**Simple Agent (`src/agents/simple_agent.py`):**
+This is a minimal test agent that can be used as a template for creating new agents. It's not part of the main solving pipeline but serves as an example of the BaseAgent interface.
+
+**Agent Exports (`src/agents/__init__.py`):**
+Uses dynamic imports to automatically export all agent classes from the agents package, making imports cleaner in the main module.
