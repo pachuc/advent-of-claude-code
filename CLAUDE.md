@@ -33,6 +33,7 @@ This project uses AI agents powered by Claude Code to automatically solve Advent
 - Automatic submission with retry logic
 - Handles both Part 1 and Part 2 sequentially
 - Built-in testing and feedback loops
+- **Race Mode**: Web interface to race against Claude on AoC puzzles
 
 ## Quick Start
 
@@ -56,6 +57,10 @@ make solve YEAR=2015 DAY=1
 
 # 6. Or solve all 25 days
 make solve YEAR=2015
+
+# 7. Or race against Claude (web interface)
+make web
+# Open http://localhost:8000 in your browser
 ```
 
 For detailed cookie extraction instructions, see [COOKIE_EXTRACTION.md](COOKIE_EXTRACTION.md).
@@ -65,8 +70,9 @@ For detailed cookie extraction instructions, see [COOKIE_EXTRACTION.md](COOKIE_E
 **Common Commands:**
 ```bash
 make build               # Build container
-make solve YEAR=Y DAY=D  # Solve specific day
-make solve YEAR=Y        # Solve all 25 days
+make solve YEAR=Y DAY=D  # Solve specific day (CLI mode)
+make solve YEAR=Y        # Solve all 25 days (CLI mode)
+make web                 # Start race mode web server (http://localhost:8000)
 make debug               # Interactive shell
 make clean               # Remove container
 ```
@@ -209,8 +215,11 @@ The `AdventSolver` class orchestrates the entire solving process, from planning 
 ```
 advent-of-claude-code/
 ├── src/
-│   ├── main.py              # Entry point, orchestrates the workflow
+│   ├── main.py              # CLI entry point, orchestrates the workflow
 │   ├── aoc_client.py        # Advent of Code API client
+│   ├── api.py               # FastAPI web server (race mode)
+│   ├── race_manager.py      # Race state management & background solver
+│   ├── progress.py          # Progress tracking abstraction
 │   └── agents/
 │       ├── __init__.py           # Dynamic agent exports
 │       ├── base_agent.py         # Base class for all agents
@@ -221,6 +230,10 @@ advent-of-claude-code/
 │       ├── testing_agent.py      # Tests and verifies solution
 │       ├── submission_agent.py   # Analyzes submission results
 │       └── simple_agent.py       # Example/test agent (not used in pipeline)
+├── static/                  # Web frontend assets (race mode)
+│   ├── index.html           # Single-page app
+│   ├── style.css            # AoC-inspired dark theme
+│   └── app.js               # Frontend application logic
 ├── workspace/               # Generated workspace (mounted volume)
 │   └── <year>/
 │       └── day_<day>/
@@ -247,7 +260,7 @@ advent-of-claude-code/
 ├── .env.example             # Template for environment variables
 ├── .gitignore               # Git ignore rules (workspace/, .env, etc.)
 ├── Containerfile            # Podman/Docker container definition
-├── Makefile                 # Build, run, solve, debug commands
+├── Makefile                 # Build, run, solve, debug, web commands
 ├── requirements.txt         # Python dependencies
 ├── README.md                # Project overview and high-level description
 ├── CLAUDE.md                # This file - comprehensive development reference

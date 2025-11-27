@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advent of Claude Code</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <!-- Header -->
+    <header id="app-header">
+        <div class="header-content">
+            <h1 class="logo">Advent of <span class="logo-claude">Claude</span> Code</h1>
+            <div id="race-timer" class="timer hidden">00:00</div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main id="app-main">
+        <!-- Setup Screen -->
+        <section id="setup-screen" class="screen active">
+            <div class="setup-container">
+                <h2>Setup Your Race</h2>
+                <form id="race-setup-form">
+                    <div class="form-group">
+                        <label for="aoc-token">AOC Session Token</label>
+                        <div class="token-input-wrapper">
+                            <input type="password" id="aoc-token" placeholder="Paste your session token here" autocomplete="off">
+                            <button type="button" id="toggle-token" class="btn-small">Show</button>
+                        </div>
+                        <details class="help-text">
+                            <summary>How to get your token</summary>
+                            <div class="help-content">
+                                <p><strong>Quick Method (Browser Console):</strong></p>
+                                <ol>
+                                    <li>Log in to <a href="https://adventofcode.com" target="_blank">adventofcode.com</a></li>
+                                    <li>Press F12 to open Developer Tools</li>
+                                    <li>Go to the Console tab</li>
+                                    <li>Paste this command and press Enter:</li>
+                                </ol>
+                                <pre><code>document.cookie.split('; ').find(c => c.startsWith('session=')).split('=')[1]</code></pre>
+                                <p>Copy the output (long hexadecimal string) and paste it above.</p>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="year">Year</label>
+                            <select id="year" required></select>
+                        </div>
+                        <div class="form-group">
+                            <label for="day">Day</label>
+                            <select id="day" required></select>
+                        </div>
+                    </div>
+
+                    <button type="submit" id="start-race-btn" class="btn-primary">Start the Race!</button>
+                </form>
+
+                <div id="setup-error" class="error-message hidden"></div>
+            </div>
+        </section>
+
+        <!-- Race Screen -->
+        <section id="race-screen" class="screen hidden">
+            <div class="race-container">
+                <!-- Left Panel: Puzzle & User Input -->
+                <div class="panel puzzle-panel">
+                    <div class="panel-header">
+                        <h2 id="puzzle-title">Loading puzzle...</h2>
+                        <div class="part-tabs">
+                            <button class="tab-btn active" data-part="1">Part 1</button>
+                            <button class="tab-btn" data-part="2" disabled>Part 2</button>
+                        </div>
+                    </div>
+                    <div id="puzzle-content" class="puzzle-text"></div>
+                    <a id="input-link" href="#" target="_blank" class="input-link">
+                        View Your Puzzle Input
+                    </a>
+
+                    <div class="answer-section">
+                        <label for="user-answer">Your Answer:</label>
+                        <div class="answer-input-row">
+                            <input type="text" id="user-answer" autocomplete="off" placeholder="Enter your answer">
+                            <button type="button" id="submit-answer" class="btn-primary">Submit</button>
+                        </div>
+                        <div id="answer-feedback" class="feedback hidden"></div>
+                    </div>
+                </div>
+
+                <!-- Right Panel: Claude Progress -->
+                <div class="panel claude-panel">
+                    <h2>Claude's Progress</h2>
+
+                    <div class="progress-section">
+                        <div class="progress-bar-container">
+                            <div class="progress-bar">
+                                <div id="progress-fill" class="progress-fill" style="width: 0%"></div>
+                            </div>
+                            <div class="progress-label">
+                                <span id="progress-percent">0%</span>
+                                <span id="current-stage">Waiting...</span>
+                            </div>
+                        </div>
+
+                        <ul id="stage-checklist" class="stage-list">
+                            <li data-stage="translation" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Translation</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                            <li data-stage="planning" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Planning</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                            <li data-stage="critique" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Critique</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                            <li data-stage="coding" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Coding</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                            <li data-stage="testing" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Testing</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                            <li data-stage="submitting" class="pending">
+                                <span class="stage-icon"></span>
+                                <span class="stage-name">Submission</span>
+                                <span class="stage-time">--</span>
+                            </li>
+                        </ul>
+                    </div>
+
+                    <div class="activity-section">
+                        <h3>Recent Activity</h3>
+                        <div id="activity-messages"></div>
+                    </div>
+
+                    <div class="claude-status">
+                        <div id="claude-part1-status" class="part-status">
+                            <span class="part-label">Part 1:</span>
+                            <span class="status-text">Pending</span>
+                        </div>
+                        <div id="claude-part2-status" class="part-status">
+                            <span class="part-label">Part 2:</span>
+                            <span class="status-text">Locked</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Screen -->
+        <section id="results-screen" class="screen hidden">
+            <div class="results-container">
+                <div id="winner-announcement" class="winner-banner">
+                    <!-- Filled by JS -->
+                </div>
+
+                <table id="results-table" class="results-table">
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>You</th>
+                            <th>Claude</th>
+                            <th>Winner</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Part 1</td>
+                            <td id="user-part1-time">--:--</td>
+                            <td id="claude-part1-time">--:--</td>
+                            <td id="part1-winner">--</td>
+                        </tr>
+                        <tr>
+                            <td>Part 2</td>
+                            <td id="user-part2-time">--:--</td>
+                            <td id="claude-part2-time">--:--</td>
+                            <td id="part2-winner">--</td>
+                        </tr>
+                        <tr class="total-row">
+                            <td>Total</td>
+                            <td id="user-total-time">--:--</td>
+                            <td id="claude-total-time">--:--</td>
+                            <td id="overall-winner">--</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="results-actions">
+                    <button id="race-again-btn" class="btn-primary">Race Again</button>
+                    <button id="new-puzzle-btn" class="btn-secondary">New Puzzle</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer>
+        <p>Built with Claude Code | <a href="https://adventofcode.com" target="_blank">Advent of Code</a> by Eric Wastl</p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

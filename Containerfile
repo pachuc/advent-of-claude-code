@@ -20,10 +20,15 @@ RUN npm install -g @anthropic-ai/claude-code
 RUN mkdir -p /root/.claude
 
 COPY src/ ./src/
+COPY static/ ./static/
 
 # Create agent workspace directory
 RUN mkdir -p /app/agent_workspace
 
 ENV PYTHONPATH=/app
 
-CMD ["python", "src/main.py"]
+# Expose port for web mode (only used with `make web`)
+EXPOSE 8000
+
+# Default command: CLI mode (web mode overrides with uvicorn)
+CMD ["python", "-m", "src.main"]

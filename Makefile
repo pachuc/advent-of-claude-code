@@ -1,4 +1,4 @@
-.PHONY: build clean run logs solve debug
+.PHONY: build clean run logs solve debug web
 
 build:
 	podman build -f Containerfile -t advent-of-claude-code:latest .
@@ -42,7 +42,7 @@ solve:
 				-v $$(pwd)/workspace:/app/agent_workspace:z \
 				-v $$HOME/.claude:/root/.claude:z \
 				advent-of-claude-code:latest \
-				python -u src/main.py --year $(YEAR) --all-days; \
+				python -u -m src.main --year $(YEAR) --all-days; \
 		else \
 			echo "Solving AoC $(YEAR) Day $(DAY)..."; \
 			set -a; . $$(pwd)/.env; set +a; \
@@ -54,7 +54,7 @@ solve:
 				-v $$(pwd)/workspace:/app/agent_workspace:z \
 				-v $$HOME/.claude:/root/.claude:z \
 				advent-of-claude-code:latest \
-				python -u src/main.py --year $(YEAR) --day $(DAY); \
+				python -u -m src.main --year $(YEAR) --day $(DAY); \
 		fi \
 	else \
 		echo "Must provide .env file with AOC_SESSION"; \
@@ -74,6 +74,26 @@ debug:
 			-v $$HOME/.claude:/root/.claude:z \
 			advent-of-claude-code:latest \
 			/bin/bash; \
+	else \
+		echo "Must provide .env file with AOC_SESSION"; \
+		exit 1; \
+	fi
+
+web:
+	@echo "Starting Race Against Claude web server..."
+	@echo "Open http://localhost:8000 in your browser"
+	@if [ -f .env ]; then \
+		set -a; . $$(pwd)/.env; set +a; \
+		mkdir -p ./workspace; \
+		podman run --rm -it \
+			-p 8000:8000 \
+			-e AOC_SESSION="$${AOC_SESSION:-}" \
+			-e IS_SANDBOX=1 \
+			-e PYTHONUNBUFFERED=1 \
+			-v $$(pwd)/workspace:/app/agent_workspace:z \
+			-v $$HOME/.claude:/root/.claude:z \
+			advent-of-claude-code:latest \
+			uvicorn src.api:app --host 0.0.0.0 --port 8000; \
 	else \
 		echo "Must provide .env file with AOC_SESSION"; \
 		exit 1; \

@@ -196,3 +196,66 @@ class AdventOfCodeClient:
         file_path.write_text(input_content)
 
         return file_path
+
+    def get_puzzle_for_display(self, year: int, day: int, part: int) -> dict:
+        """Get puzzle content for display without saving to file.
+
+        This is used by the web interface to display the puzzle content
+        directly to the user.
+
+        Args:
+            year: The year of the puzzle (e.g., 2024)
+            day: The day of the puzzle (1-25)
+            part: The part number (1 or 2)
+
+        Returns:
+            Dictionary with:
+            - markdown: Puzzle description as markdown string
+            - html: Raw HTML of the puzzle article
+            - title: Extracted title if available
+        """
+        url = f"{self.BASE_URL}/{year}/day/{day}"
+        response = self.session.get(url)
+        response.raise_for_status()
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+        articles = soup.find_all('article')
+
+        if part == 1:
+            if len(articles) < 1:
+                raise ValueError(f"Part 1 not available for {year} day {day}")
+            article = articles[0]
+        elif part == 2:
+            if len(articles) < 2:
+                raise ValueError(f"Part 2 not yet unlocked for {year} day {day}")
+            article = articles[1]
+        else:
+            raise ValueError(f"Invalid part: {part}. Must be 1 or 2.")
+
+        # Extract title from h2 element if present
+        title_elem = article.find('h2')
+        title = title_elem.get_text().strip() if title_elem else f"Day {day}"
+        # Clean up title (remove "--- Day X: " prefix and " ---" suffix)
+        if title.startswith("---"):
+            title = title.strip("-").strip()
+
+        # Convert HTML to Markdown
+        markdown_content = md(str(article))
+
+        return {
+            "markdown": markdown_content,
+            "html": str(article),
+            "title": title
+        }
+
+    def get_input_url(self, year: int, day: int) -> str:
+        """Get the URL for puzzle input.
+
+        Args:
+            year: The year of the puzzle
+            day: The day of the puzzle
+
+        Returns:
+            URL string for the puzzle input page
+        """
+        return f"{self.BASE_URL}/{year}/day/{day}/input"

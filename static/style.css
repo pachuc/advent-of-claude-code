@@ -1,0 +1,641 @@
+/* Advent of Claude Code - AoC-inspired dark theme */
+
+:root {
+    --bg-dark: #0f0f23;
+    --bg-panel: #10101a;
+    --text-primary: #cccccc;
+    --text-secondary: #666666;
+    --text-bright: #ffffff;
+    --accent-green: #00cc00;
+    --accent-gold: #ffff66;
+    --accent-silver: #9999cc;
+    --error-red: #ff6666;
+    --border-color: #333340;
+    --code-bg: #1a1a2e;
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Source Code Pro', 'Courier New', monospace;
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.5;
+}
+
+a {
+    color: var(--accent-green);
+    text-decoration: none;
+}
+
+a:hover {
+    text-decoration: underline;
+}
+
+/* Header */
+#app-header {
+    background-color: var(--bg-panel);
+    border-bottom: 1px solid var(--border-color);
+    padding: 1rem 2rem;
+}
+
+.header-content {
+    max-width: 1400px;
+    margin: 0 auto;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.logo {
+    font-size: 1.5rem;
+    color: var(--accent-green);
+    font-weight: normal;
+}
+
+.logo-claude {
+    color: var(--accent-gold);
+    text-shadow: 0 0 10px var(--accent-gold), 0 0 20px var(--accent-gold);
+}
+
+.timer {
+    font-size: 2rem;
+    color: var(--accent-gold);
+    font-weight: bold;
+}
+
+/* Main Content */
+#app-main {
+    flex: 1;
+    padding: 2rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+.screen {
+    display: none;
+}
+
+.screen.active {
+    display: block;
+}
+
+.hidden {
+    display: none !important;
+}
+
+/* Setup Screen */
+.setup-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    background-color: var(--bg-panel);
+    padding: 2rem;
+    border: 1px solid var(--border-color);
+}
+
+.setup-container h2 {
+    color: var(--text-bright);
+    margin-bottom: 1.5rem;
+    text-align: center;
+}
+
+.form-group {
+    margin-bottom: 1.5rem;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+    padding: 0.75rem;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-bright);
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+    border-color: var(--accent-green);
+}
+
+.token-input-wrapper {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.token-input-wrapper input {
+    flex: 1;
+}
+
+.form-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-row .form-group {
+    flex: 1;
+}
+
+.help-text {
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.help-text summary {
+    cursor: pointer;
+    color: var(--accent-silver);
+}
+
+.help-content {
+    margin-top: 0.5rem;
+    padding: 1rem;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+}
+
+.help-content pre {
+    background-color: var(--bg-dark);
+    padding: 0.5rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.help-content code {
+    color: var(--accent-gold);
+}
+
+.help-content ol {
+    padding-left: 1.5rem;
+}
+
+.error-message {
+    color: var(--error-red);
+    margin-top: 1rem;
+    padding: 0.75rem;
+    border: 1px solid var(--error-red);
+    background-color: rgba(255, 102, 102, 0.1);
+}
+
+/* Buttons */
+.btn-primary,
+.btn-secondary,
+.btn-small {
+    font-family: inherit;
+    cursor: pointer;
+    border: 1px solid var(--accent-green);
+    transition: all 0.2s;
+}
+
+.btn-primary {
+    background-color: var(--accent-green);
+    color: var(--bg-dark);
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+    font-weight: bold;
+}
+
+.btn-primary:hover {
+    background-color: #00ff00;
+}
+
+.btn-primary:disabled {
+    background-color: var(--text-secondary);
+    border-color: var(--text-secondary);
+    cursor: not-allowed;
+}
+
+.btn-secondary {
+    background-color: transparent;
+    color: var(--accent-green);
+    padding: 0.75rem 1.5rem;
+    font-size: 1rem;
+}
+
+.btn-secondary:hover {
+    background-color: rgba(0, 204, 0, 0.1);
+}
+
+.btn-small {
+    background-color: transparent;
+    color: var(--accent-green);
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+
+/* Race Screen */
+.race-container {
+    display: grid;
+    grid-template-columns: 1fr 400px;
+    gap: 2rem;
+    height: calc(100vh - 200px);
+}
+
+.panel {
+    background-color: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    padding: 1.5rem;
+    overflow-y: auto;
+}
+
+.panel h2 {
+    color: var(--text-bright);
+    margin-bottom: 1rem;
+    font-size: 1.25rem;
+}
+
+/* Puzzle Panel */
+.panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.part-tabs {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.tab-btn {
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.tab-btn.active {
+    border-color: var(--accent-green);
+    color: var(--accent-green);
+}
+
+.tab-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.puzzle-text {
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 1rem;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+.puzzle-text code {
+    color: var(--accent-gold);
+    background-color: var(--bg-dark);
+    padding: 0.1rem 0.3rem;
+}
+
+.puzzle-text pre {
+    background-color: var(--bg-dark);
+    padding: 0.5rem;
+    overflow-x: auto;
+    margin: 0.5rem 0;
+}
+
+.puzzle-text em {
+    color: var(--text-bright);
+    font-style: normal;
+    text-shadow: 0 0 5px var(--text-bright);
+}
+
+.input-link {
+    display: inline-block;
+    margin-bottom: 1rem;
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--accent-green);
+}
+
+.answer-section {
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.answer-section label {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.answer-input-row {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.answer-input-row input {
+    flex: 1;
+    padding: 0.75rem;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-bright);
+    font-family: inherit;
+    font-size: 1rem;
+}
+
+.answer-input-row input:focus {
+    outline: none;
+    border-color: var(--accent-green);
+}
+
+.feedback {
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+}
+
+.feedback.success {
+    color: var(--accent-green);
+    border: 1px solid var(--accent-green);
+    background-color: rgba(0, 204, 0, 0.1);
+}
+
+.feedback.error {
+    color: var(--error-red);
+    border: 1px solid var(--error-red);
+    background-color: rgba(255, 102, 102, 0.1);
+}
+
+/* Claude Progress Panel */
+.progress-section {
+    margin-bottom: 1.5rem;
+}
+
+.progress-bar-container {
+    margin-bottom: 1rem;
+}
+
+.progress-bar {
+    height: 24px;
+    background-color: var(--code-bg);
+    border: 1px solid var(--border-color);
+    position: relative;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--accent-green);
+    transition: width 0.3s ease-out;
+}
+
+.progress-label {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.875rem;
+}
+
+#progress-percent {
+    color: var(--accent-green);
+}
+
+#current-stage {
+    color: var(--text-secondary);
+}
+
+.stage-list {
+    list-style: none;
+}
+
+.stage-list li {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.stage-icon {
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+}
+
+.stage-list li.completed .stage-icon {
+    background-color: var(--accent-green);
+    border-color: var(--accent-green);
+    color: var(--bg-dark);
+}
+
+.stage-list li.completed .stage-icon::after {
+    content: '\2713';
+}
+
+.stage-list li.active .stage-icon {
+    border-color: var(--accent-gold);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.stage-list li.active .stage-icon::after {
+    content: '>';
+    color: var(--accent-gold);
+}
+
+.stage-name {
+    flex: 1;
+}
+
+.stage-list li.completed .stage-name {
+    color: var(--accent-green);
+}
+
+.stage-list li.active .stage-name {
+    color: var(--accent-gold);
+}
+
+.stage-time {
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.activity-section {
+    margin-bottom: 1.5rem;
+}
+
+.activity-section h3 {
+    font-size: 1rem;
+    margin-bottom: 0.5rem;
+    color: var(--text-primary);
+}
+
+#activity-messages {
+    max-height: 100px;
+    overflow-y: auto;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    background-color: var(--code-bg);
+    padding: 0.5rem;
+    border: 1px solid var(--border-color);
+}
+
+.activity-entry {
+    padding: 0.25rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.activity-entry:last-child {
+    border-bottom: none;
+}
+
+.claude-status {
+    padding-top: 1rem;
+    border-top: 1px solid var(--border-color);
+}
+
+.part-status {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.5rem 0;
+}
+
+.part-label {
+    color: var(--text-primary);
+}
+
+.status-text {
+    color: var(--text-secondary);
+}
+
+.status-text.completed {
+    color: var(--accent-green);
+}
+
+.status-text.running {
+    color: var(--accent-gold);
+}
+
+.status-text.failed {
+    color: var(--error-red);
+}
+
+/* Results Screen */
+.results-container {
+    max-width: 600px;
+    margin: 2rem auto;
+    text-align: center;
+}
+
+.winner-banner {
+    padding: 2rem;
+    margin-bottom: 2rem;
+    font-size: 1.5rem;
+}
+
+.winner-banner.user-wins {
+    background-color: rgba(0, 204, 0, 0.2);
+    border: 2px solid var(--accent-green);
+    color: var(--accent-green);
+}
+
+.winner-banner.claude-wins {
+    background-color: rgba(255, 255, 102, 0.2);
+    border: 2px solid var(--accent-gold);
+    color: var(--accent-gold);
+}
+
+.winner-banner.tie {
+    background-color: rgba(153, 153, 204, 0.2);
+    border: 2px solid var(--accent-silver);
+    color: var(--accent-silver);
+}
+
+.results-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 2rem;
+}
+
+.results-table th,
+.results-table td {
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    text-align: center;
+}
+
+.results-table th {
+    background-color: var(--bg-panel);
+    color: var(--text-bright);
+}
+
+.results-table td {
+    background-color: var(--code-bg);
+}
+
+.results-table .total-row {
+    font-weight: bold;
+}
+
+.results-table .total-row td {
+    background-color: var(--bg-panel);
+}
+
+.results-actions {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+}
+
+/* Footer */
+footer {
+    padding: 1rem 2rem;
+    text-align: center;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .race-container {
+        grid-template-columns: 1fr;
+        height: auto;
+    }
+
+    .panel {
+        max-height: 500px;
+    }
+}
+
+@media (max-width: 600px) {
+    #app-main {
+        padding: 1rem;
+    }
+
+    .setup-container {
+        padding: 1rem;
+    }
+
+    .form-row {
+        flex-direction: column;
+    }
+}
