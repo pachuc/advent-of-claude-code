@@ -152,6 +152,26 @@ a:hover {
     flex: 1;
 }
 
+/* Checkbox styling */
+.checkbox-group {
+    margin-bottom: 1.5rem;
+}
+
+.checkbox-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    cursor: pointer;
+    color: var(--text-bright);
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    cursor: pointer;
+    accent-color: var(--accent-green);
+}
+
 .help-text {
     margin-top: 0.5rem;
     font-size: 0.875rem;
